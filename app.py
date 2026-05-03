@@ -13,21 +13,31 @@ st.markdown("""
     [data-testid="stSidebar"] { background: linear-gradient(180deg, #000814 0%, #001D3D 100%); border-right: 2px solid #00B4D8; }
     h1, h3, .stMarkdown { color: white !important; }
     
-    /* Стиль для блоків часових вікон */
+    /* Стиль для блоків часових вікон з ефектом лінійки */
     .window-card {
-        background: rgba(0, 180, 216, 0.05);
-        border: 1px solid rgba(0, 180, 216, 0.3);
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 10px;
+        background: transparent;
+        padding: 20px 10px;
+        margin: 0;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        /* Тонка напівпрозора лінія, що світиться */
+        border-bottom: 1px solid rgba(0, 180, 216, 0.2);
+        box-shadow: 0 1px 4px -1px rgba(0, 180, 216, 0.3);
+        transition: background 0.3s;
     }
-    .indicator { width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-right: 10px; }
-    .bg-green { background-color: #2ECC71; box-shadow: 0 0 10px #2ECC71; }
-    .bg-yellow { background-color: #F1C40F; box-shadow: 0 0 10px #F1C40F; }
-    .bg-red { background-color: #E74C3C; box-shadow: 0 0 10px #E74C3C; }
+    
+    .window-card:hover {
+        background: rgba(0, 180, 216, 0.03);
+    }
+
+    .indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 15px; }
+    .bg-green { background-color: #2ECC71; box-shadow: 0 0 12px #2ECC71; }
+    .bg-yellow { background-color: #F1C40F; box-shadow: 0 0 12px #F1C40F; }
+    .bg-red { background-color: #E74C3C; box-shadow: 0 0 12px #E74C3C; }
+    
+    /* Приховуємо зайві відступи Streamlit зверху */
+    .block-container { padding-top: 2rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -36,11 +46,9 @@ def get_safety_status(weather_item, params):
     temp = weather_item['main']['temp']
     hum = weather_item['main']['humidity']
     
-    # Критичні умови
     if temp < params['min_temp'] or temp > params['max_temp'] or hum > params['max_humidity'] or wind > params['max_wind']:
         return "RED", 0.0
     
-    # Розрахунок коефіцієнта
     k_wind = max(0, (params['max_wind'] - wind) / params['max_wind'])
     k_hum = max(0, (params['max_humidity'] - hum) / params['max_humidity'])
     score = round((k_wind * 0.7) + (k_hum * 0.3), 2)
@@ -57,9 +65,7 @@ def load_drones():
 
 drones_db = load_drones()
 
-st.write("<h1 style='text-align:center;'>ПРОГНОЗ ВІКОН ДЛЯ ПОЛЬОТІВ</h1>", unsafe_allow_html=True)
-
-# Ліва панель (БЕЗ ЗМІН ДИЗАЙНУ)
+# Ліва панель (БЕЗ ЗМІН)
 st.sidebar.markdown("### ⚙️ НАЛАШТУВАННЯ МІСІЇ")
 selected_drone = st.sidebar.selectbox("МОДЕЛЬ БПЛА", list(drones_db.keys()))
 city = st.sidebar.text_input("ЛОКАЦІЯ", "Kyiv")
@@ -74,9 +80,7 @@ if st.sidebar.button("АНАЛІЗУВАТИ БЕЗПЕКУ"):
     res = requests.get(url).json()
     
     if "list" in res:
-        st.subheader(f"🛡️ Рекомендовані вікна для {selected_drone}")
-        
-        # Аналізуємо точки прогнозу та групуємо їх у "вікна"
+        # Аналіз вікон
         windows = []
         for item in res['list']:
             f_dt = datetime.strptime(item['dt_txt'], '%Y-%m-%d %H:%M:%S')
@@ -89,47 +93,42 @@ if st.sidebar.button("АНАЛІЗУВАТИ БЕЗПЕКУ"):
         
         if windows:
             html_content = ""
-            for i in range(len(windows)):
-                w = windows[i]
+            for w in windows:
                 color_class = f"bg-{w['status'].lower()}"
-                
-                # Текст рекомендації залежно від статусу
-                if w['status'] == "GREEN":
-                    rec = "Найкращий час для тривалої місії"
-                elif w['status'] == "YELLOW":
-                    rec = "Можливі пориви вітру, будьте обережні"
-                else:
-                    rec = "Ризик втрати борту! Політ не рекомендується"
+                rec = "БЕЗПЕЧНО" if w['status'] == "GREEN" else "РИЗИКОВАНО" if w['status'] == "YELLOW" else "КРИТИЧНО"
 
                 html_content += f"""
                 <div class="window-card">
-                    <div style="display: flex; align-items: center;">
+                    <div style="display: flex; align-items: center; width: 30%;">
                         <div class="indicator {color_class}"></div>
                         <div>
-                            <div style="color: white; font-weight: bold; font-size: 1.1em;">
-                                {w['time'].strftime('%H:%M')} — { (w['time'] + timedelta(hours=3)).strftime('%H:%M') }
+                            <div style="color: white; font-weight: bold; font-size: 1.1em; letter-spacing: 1px;">
+                                {w['time'].strftime('%H:%M')}
                             </div>
-                            <div style="color: #00B4D8; font-size: 0.85em;">{w['time'].strftime('%d %b')}</div>
+                            <div style="color: rgba(0, 180, 216, 0.6); font-size: 0.75em; text-transform: uppercase;">
+                                {w['time'].strftime('%d %b')}
+                            </div>
                         </div>
                     </div>
-                    <div style="text-align: center; flex-grow: 1; padding: 0 20px;">
-                        <span style="color: rgba(255,255,255,0.7); font-size: 0.9em;">{rec}</span>
+                    <div style="text-align: center; width: 40%;">
+                        <span style="color: rgba(255,255,255,0.5); font-size: 0.8em; letter-spacing: 2px;">{rec}</span>
                     </div>
-                    <div style="text-align: right;">
-                        <div style="color: white; font-size: 0.8em; opacity: 0.6;">Вітер: {w['wind']} м/с</div>
-                        <div style="color: white; font-size: 0.8em; opacity: 0.6;">Коеф: {w['score']}</div>
+                    <div style="text-align: right; width: 30%;">
+                        <div style="color: white; font-size: 0.85em;">{w['wind']} m/s</div>
+                        <div style="color: rgba(0, 180, 216, 0.5); font-size: 0.7em;">INDEX: {w['score']}</div>
                     </div>
                 </div>
                 """
-            components.html(f"<div style='font-family: sans-serif;'>{html_content}</div>", height=600, scrolling=True)
             
-            # Підсумок під таблицею
-            best_windows = [w['time'].strftime('%H:%M') for w in windows if w['status'] == "GREEN"]
-            if best_windows:
-                st.success(f"✅ Знайдено оптимальні вікна: {', '.join(best_windows[:3])}...")
-            else:
-                st.warning("⚠️ Оптимальних вікон (зелених) не знайдено. Розгляньте варіанти з жовтим статусом.")
+            # Контейнер для списку вікон
+            st.markdown(f"<div style='margin-top: 10px;'>{html_content}</div>", unsafe_allow_html=True)
+            
+            # Короткий підсумок
+            st.markdown("---")
+            best = [w['time'].strftime('%H:%M') for w in windows if w['status'] == "GREEN"]
+            if best:
+                st.info(f"💡 Рекомендовані старти: {', '.join(best[:4])}")
         else:
-            st.info("ℹ️ Немає даних для аналізу в обраний період.")
+            st.warning("⚠️ Дані для вибраного періоду відсутні в базі прогнозу.")
     else:
-        st.error("❌ Помилка отримання даних. Перевірте назву міста.")
+        st.error("❌ Помилка зв'язку з супутником. Перевірте назву локації.")
