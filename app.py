@@ -57,8 +57,6 @@ def load_drones():
 
 drones_db = load_drones()
 
-st.write("<h1 style='text-align:center;'>ПРОГНОЗ ВІКОН ДЛЯ ПОЛЬОТІВ</h1>", unsafe_allow_html=True)
-
 # Ліва панель (БЕЗ ЗМІН ДИЗАЙНУ)
 st.sidebar.markdown("### ⚙️ НАЛАШТУВАННЯ МІСІЇ")
 selected_drone = st.sidebar.selectbox("МОДЕЛЬ БПЛА", list(drones_db.keys()))
