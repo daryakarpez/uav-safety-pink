@@ -1,11 +1,11 @@
-import streamlit as st
+[04.05.2026 0:48] 🕊💻: import streamlit as st
 import json
 import requests
 import streamlit.components.v1 as components
 from datetime import datetime, timedelta
 
 # 1. Налаштування сторінки
-st.set_page_config(page_title="UAV Mission Planner", layout="wide")
+
 
 st.markdown("""
     <style>
@@ -13,28 +13,21 @@ st.markdown("""
     [data-testid="stSidebar"] { background: linear-gradient(180deg, #000814 0%, #001D3D 100%); border-right: 2px solid #00B4D8; }
     h1, h3, .stMarkdown { color: white !important; }
     
-    /* Стиль "Лінійка": лише нижня напівпрозора лінія зі світінням */
+    /* Стиль для блоків часових вікон */
     .window-card {
-        background: transparent;
-        border: none;
-        /* Тонка напівпрозора лінія */
-        border-bottom: 1px solid rgba(0, 180, 216, 0.2); 
-        padding: 15px 0px; 
-        margin-bottom: 0px; 
+        background: rgba(0, 180, 216, 0.05);
+        border: 1px solid rgba(0, 180, 216, 0.3);
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
         display: flex;
         justify-content: space-between;
-        /* Вирівнювання по нижньому краю, щоб текст лежав на лінії */
-        align-items: flex-end; 
-        box-shadow: 0px 4px 10px -6px rgba(0, 180, 216, 0.3);
+        align-items: center;
     }
-
-    /* Колонки для чіткого вирівнювання тексту */
-    .col-time { width: 20%; text-align: left; }
-    .col-rec { width: 60%; text-align: center; padding-bottom: 2px; }
-    .col-data { width: 20%; text-align: right; }
-
-    /* Приховуємо зайві відступи Streamlit */
-    .block-container { padding-top: 2rem; }
+    .indicator { width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-right: 10px; }
+    .bg-green { background-color: #2ECC71; box-shadow: 0 0 10px #2ECC71; }
+    .bg-yellow { background-color: #F1C40F; box-shadow: 0 0 10px #F1C40F; }
+    .bg-red { background-color: #E74C3C; box-shadow: 0 0 10px #E74C3C; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -64,6 +57,7 @@ def load_drones():
 
 drones_db = load_drones()
 
+
 # Ліва панель (БЕЗ ЗМІН ДИЗАЙНУ)
 st.sidebar.markdown("### ⚙️ НАЛАШТУВАННЯ МІСІЇ")
 selected_drone = st.sidebar.selectbox("МОДЕЛЬ БПЛА", list(drones_db.keys()))
@@ -79,8 +73,9 @@ if st.sidebar.button("АНАЛІЗУВАТИ БЕЗПЕКУ"):
     res = requests.get(url).json()
     
     if "list" in res:
-        st.subheader(f"🛡️ Рекомендовані вікна для {selected_drone}")
+        st.subheader(f"🛡 Рекомендовані вікна для {selected_drone}")
         
+        # Аналізуємо точки прогнозу та групуємо їх у "вікна"
         windows = []
         for item in res['list']:
             f_dt = datetime.strptime(item['dt_txt'], '%Y-%m-%d %H:%M:%S')
@@ -95,48 +90,43 @@ if st.sidebar.button("АНАЛІЗУВАТИ БЕЗПЕКУ"):
             html_content = ""
             for i in range(len(windows)):
                 w = windows[i]
+                color_class = f"bg-{w['status'].lower()}"
                 
-                # Колір тексту залежно від статусу (без точок)
-                status_color = "#2ECC71" if w['status'] == "GREEN" else "#F1C40F" if w['status'] == "YELLOW" else "#E74C3C"
-                
+                # Текст рекомендації залежно від статусу
                 if w['status'] == "GREEN":
                     rec = "Найкращий час для тривалої місії"
                 elif w['status'] == "YELLOW":
                     rec = "Можливі пориви вітру, будьте обережні"
                 else:
-                    rec = "Ризик втрати борту! Не рекомендується"
-
-                # Формуємо рядок з напівпрозорою лінією
-                html_content += f"""
+                    rec = "Ризик втрати борту! Політ не рекомендується"
+[04.05.2026 0:48] 🕊💻: html_content += f"""
                 <div class="window-card">
-                    <div class="col-time">
-                        <div style="color: white; font-weight: bold; font-size: 1.1em; line-height: 1;">
-                            {w['time'].strftime('%H:%M')}
-                        </div>
-                        <div style="color: #00B4D8; font-size: 0.7em; margin-top: 3px; opacity: 0.6;">
-                            {w['time'].strftime('%d %b')}
+                    <div style="display: flex; align-items: center;">
+                        <div class="indicator {color_class}"></div>
+                        <div>
+                            <div style="color: white; font-weight: bold; font-size: 1.1em;">
+                                {w['time'].strftime('%H:%M')} — { (w['time'] + timedelta(hours=3)).strftime('%H:%M') }
+                            </div>
+                            <div style="color: #00B4D8; font-size: 0.85em;">{w['time'].strftime('%d %b')}</div>
                         </div>
                     </div>
-                    
-                    <div class="col-rec" style="color: {status_color};">
-                        {rec}
+                    <div style="text-align: center; flex-grow: 1; padding: 0 20px;">
+                        <span style="color: rgba(255,255,255,0.7); font-size: 0.9em;">{rec}</span>
                     </div>
-                    
-                    <div class="col-data">
+                    <div style="text-align: right;">
                         <div style="color: white; font-size: 0.8em; opacity: 0.6;">Вітер: {w['wind']} м/с</div>
-                        <div style="color: rgba(0, 180, 216, 0.4); font-size: 0.7em;">Коеф: {w['score']}</div>
+                        <div style="color: white; font-size: 0.8em; opacity: 0.6;">Коеф: {w['score']}</div>
                     </div>
                 </div>
                 """
+            components.html(f"<div style='font-family: sans-serif;'>{html_content}</div>", height=600, scrolling=True)
             
-            # Вивід через markdown для кращої інтеграції стилів сторінки
-            st.markdown(f"<div style='font-family: sans-serif;'>{html_content}</div>", unsafe_allow_html=True)
-            
+            # Підсумок під таблицею
             best_windows = [w['time'].strftime('%H:%M') for w in windows if w['status'] == "GREEN"]
             if best_windows:
                 st.success(f"✅ Знайдено оптимальні вікна: {', '.join(best_windows[:3])}...")
             else:
-                st.warning("⚠️ Оптимальних вікон (зелених) не знайдено.")
+                st.warning("⚠️ Оптимальних вікон (зелених) не знайдено. Розгляньте варіанти з жовтим статусом.")
         else:
             st.info("ℹ️ Немає даних для аналізу в обраний період.")
     else:
