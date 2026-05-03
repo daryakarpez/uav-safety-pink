@@ -1,7 +1,8 @@
 import streamlit as st
 import json
 import requests
-from datetime import datetime
+import streamlit.components.v1 as components
+from datetime import datetime, timedelta
 
 # 1. Налаштування сторінки
 st.set_page_config(page_title="UAV Safety Pink System", layout="wide")
@@ -27,20 +28,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Математична модель (винесена на початок)
 def calculate_safety(weather_item, params):
     wind = weather_item['wind']['speed']
     temp = weather_item['main']['temp']
     hum = weather_item['main']['humidity']
-    
     k_wind = max(0, (params['max_wind'] - wind) / params['max_wind'])
     k_hum = max(0, (params['max_humidity'] - hum) / params['max_humidity'])
-    
     if temp < params['min_temp'] or temp > params['max_temp'] or hum > params['max_humidity']:
         return 0.0
     return round((k_wind * 0.7) + (k_hum * 0.3), 2)
 
-# 3. Завантаження даних
 def load_drones():
     try:
         with open('drones.json', 'r', encoding='utf-8') as f:
@@ -60,8 +57,9 @@ if drones_db:
     city = st.sidebar.text_input("Місто", "Kyiv")
     
     st.sidebar.subheader("⏳ Час місії")
-    start_dt = st.sidebar.datetime_input("Початок місії", datetime.now())
-    end_dt = st.sidebar.datetime_input("Кінець місії", datetime.now())
+    # Робимо проміжок за замовчуванням (сьогодні - завтра)
+    start_dt = st.sidebar.datetime_input("Початок", datetime.now())
+    end_dt = st.sidebar.datetime_input("Кінець", datetime.now() + timedelta(hours=24))
     
     api_key = "32b44eeafe4783aa188cc888cc0331c6" 
 
@@ -70,14 +68,15 @@ if drones_db:
         response = requests.get(url).json()
         
         if "list" in response:
-            st.subheader(f"📊 Аналіз погоди: {selected_drone} у місті {city}")
+            st.subheader(f"📊 Аналіз для {selected_drone} у місті {city}")
             
-            html_table = """
-            <table style="width:100%; border-collapse: collapse; background-color: white; color: #C71585; border-radius: 10px; overflow: hidden;">
+            # Формуємо HTML-строку без зайвих переносів
+            html_code = """
+            <table style="width:100%; border-collapse: collapse; font-family: sans-serif; background-color: white; color: #C71585; border-radius: 10px; overflow: hidden;">
                 <tr style="background-color: #C71585; color: white;">
-                    <th style="padding: 15px; text-align: left;">📅 Прогноз на час</th>
-                    <th style="padding: 15px; text-align: center;">🛡️ Індекс (0-1)</th>
-                    <th style="padding: 15px; text-align: center;">📝 Статус місії</th>
+                    <th style="padding: 15px; text-align: left;">📅 Час</th>
+                    <th style="padding: 15px; text-align: center;">🛡️ Індекс</th>
+                    <th style="padding: 15px; text-align: center;">📝 Статус</th>
                 </tr>
             """
             
@@ -85,41 +84,43 @@ if drones_db:
             count = 0
 
             for item in response['list'][:15]: 
-                forecast_dt = datetime.strptime(item['dt_txt'], '%Y-%m-%d %H:%M:%S')
-                score = calculate_safety(item, drones_db[selected_drone])
+                f_dt = datetime.strptime(item['dt_txt'], '%Y-%m-%d %H:%M:%S')
+                # Перетворюємо start_dt/end_dt у формат datetime для порівняння
+                s_dt = datetime.combine(start_dt.date(), start_dt.time()) if isinstance(start_dt, datetime) else start_dt
+                e_dt = datetime.combine(end_dt.date(), end_dt.time()) if isinstance(end_dt, datetime) else end_dt
                 
-                # Перевірка чи входить час у проміжок користувача
-                is_in_range = start_dt <= forecast_dt <= end_dt
+                score = calculate_safety(item, drones_db[selected_drone])
+                is_in_range = s_dt <= f_dt <= e_dt
+                
+                bg = "#FFF0F5" if (is_in_range and score > 0.5) else ("#FFB6C1" if is_in_range else "#FFFFFF")
+                op = "1.0" if is_in_range else "0.4"
+                status = "🎯 В межах місії" if is_in_range else "---"
                 
                 if is_in_range:
-                    bg_row = "#FFF0F5" if score > 0.5 else "#FFB6C1"
-                    status = "🎯 В межах місії"
                     main_score += score
                     count += 1
-                else:
-                    bg_row = "#FFFFFF"
-                    status = "<span style='color: #ccc;'>---</span>"
 
-                html_table += f"""
-                <tr style="background-color: {bg_row}; border-bottom: 1px solid #FFC0CB; opacity: {1.0 if is_in_range else 0.4};">
+                html_code += f"""
+                <tr style="background-color: {bg}; opacity: {op}; border-bottom: 1px solid #FFC0CB;">
                     <td style="padding: 12px;">{item['dt_txt']}</td>
                     <td style="padding: 12px; text-align: center; font-weight: bold;">{score}</td>
                     <td style="padding: 12px; text-align: center;">{status}</td>
                 </tr>
                 """
             
-            html_table += "</table>"
-            st.markdown(html_table, unsafe_allow_html=True)
+            html_code += "</table>"
+            
+            # ВИКОРИСТОВУЄМО КОМПОНЕНТ ДЛЯ 100% ВІДОБРАЖЕННЯ HTML
+            components.html(html_code, height=500, scrolling=True)
 
-            # Вердикт
             st.write("---")
             if count > 0:
-                avg_safety = round(main_score / count, 2)
-                if avg_safety > 0.7:
-                    st.success(f"💖 Середня безпека у вибраний час: {avg_safety}. Політ дозволено!")
+                avg = round(main_score / count, 2)
+                if avg > 0.7:
+                    st.success(f"💖 Політ дозволено! Середній індекс: {avg}")
                 else:
-                    st.error(f"💔 Середня безпека: {avg_safety}. Ризик занадто високий для цього проміжку!")
+                    st.error(f"💔 Небезпечно! Середній індекс: {avg}")
             else:
-                st.warning("⚠️ У вибраному проміжку часу прогнозів не знайдено. Оберіть час на найближчі 3-5 днів.")
+                st.warning("⚠️ Оберіть інший час у меню зліва.")
         else:
-            st.error("❌ Помилка API. Перевірте назву міста.")
+            st.error("❌ Помилка API. Перевірте місто.")
