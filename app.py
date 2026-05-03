@@ -99,7 +99,7 @@ if st.sidebar.button("АНАЛІЗУВАТИ БЕЗПЕКУ"):
                     rec = "Можливі пориви вітру, будьте обережні"
                 else:
                     rec = "Ризик втрати борту! Політ не рекомендується"
-[04.05.2026 0:48] 🕊💻: html_content += f"""
+             html_content += f"""
                 <div class="window-card">
                     <div style="display: flex; align-items: center;">
                         <div class="indicator {color_class}"></div>
