@@ -213,4 +213,28 @@ if analyze_btn:
 
                 fig.update_layout(
                     paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font_color="white",
+                    margin=dict(l=20, r=20, t=20, b=20),
+                    height=400,
+                    xaxis_rangeslider_visible=False,
+                    yaxis_title="м/с",
+                    xaxis_title="Час"
+                )
+                fig.update_xaxes(gridcolor='rgba(255,255,255,0.1)')
+                fig.update_yaxes(gridcolor='rgba(255,255,255,0.1)')
+                
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Короткий підсумок
+                best = [w['time'].strftime('%H:%M') for w in windows if w['status'] == "GREEN"]
+                if best:
+                    st.success(f"✅ Оптимальні вікна для старту: {', '.join(best[:5])}")
+                else:
+                    st.warning("⚠️ Немає ідеальних умов. Зверніть увагу на проміжки з помірним ризиком.")
+            else:
+                st.info("ℹ️ Дані для обраного періоду відсутні (максимум 5 днів вперед).")
+        else:
+            st.error("❌ Місто не знайдено.")
+    except Exception as e:
+        st.error(f"❌ Помилка: {e}")
